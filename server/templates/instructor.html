@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FPGA Instructor Dashboard</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 24px; background: #f4f7fb; color: #1c2430; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: #fff; padding: 16px; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #ddd; text-align: left; padding: 8px; }
+    button { padding: 6px 10px; }
+    pre { background: #111; color: #e7f6ff; padding: 8px; border-radius: 8px; max-height: 240px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Instructor Dashboard</h1>
+  <div class="grid">
+    <div class="card">
+      <h2>Compile Queue</h2>
+      <table><thead><tr><th>ID</th><th>Student</th><th>Submission</th><th>Status</th><th>Action</th></tr></thead><tbody id="compileBody"></tbody></table>
+    </div>
+
+    <div class="card">
+      <h2>Boards</h2>
+      <table><thead><tr><th>ID</th><th>Alias</th><th>State</th><th>Serial</th><th>Action</th></tr></thead><tbody id="boardsBody"></tbody></table>
+    </div>
+
+    <div class="card">
+      <h2>Program Candidates (FIFO)</h2>
+      <table><thead><tr><th>Compile Job</th><th>Student</th><th>Submission</th><th>Action</th></tr></thead><tbody id="candidatesBody"></tbody></table>
+    </div>
+
+    <div class="card">
+      <h2>Recent Program Jobs</h2>
+      <pre id="programJobs"></pre>
+    </div>
+  </div>
+
+  <script>
+    let latestBoards = [];
+
+    function boardOptionsHtml() {
+      return latestBoards.map(b => `<option value="${b.id}">${b.board_alias} (${b.state})</option>`).join('');
+    }
+
+    async function postForm(url, payload) {
+      const fd = new FormData();
+      Object.entries(payload).forEach(([k,v]) => fd.append(k, v));
+      const resp = await fetch(url, { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (data.error) alert(data.error);
+      return data;
+    }
+
+    function render(snap) {
+      latestBoards = snap.boards || [];
+      const compileRows = [...(snap.running || []), ...(snap.pending || [])];
+      document.getElementById('compileBody').innerHTML = compileRows.map(j =>
+        `<tr><td>${j.id}</td><td>${j.student_slug}</td><td>${j.submission_name_raw}</td><td>${j.status}</td><td><button onclick="fetch('/instructor/requeue/${j.id}', {method:'POST'})">Requeue</button></td></tr>`
+      ).join('');
+
+      document.getElementById('boardsBody').innerHTML = latestBoards.map(b =>
+        `<tr><td>${b.id}</td><td>${b.board_alias}</td><td>${b.state}</td><td>${b.programmer_serial || ''}</td><td><button onclick="postForm('/instructor/clear', {board_id: ${b.id}})">Clear/Reset</button></td></tr>`
+      ).join('');
+
+      const options = boardOptionsHtml();
+      document.getElementById('candidatesBody').innerHTML = (snap.program_candidates || []).map(c =>
+        `<tr><td>${c.compile_job_id}</td><td>${c.student_slug}</td><td>${c.submission_name_raw}</td><td>
+          <select id="board-${c.compile_job_id}">${options}</select>
+          <button onclick="postForm('/instructor/program', {compile_job_id: ${c.compile_job_id}, board_id: document.getElementById('board-${c.compile_job_id}').value, mode:'load'})">Load</button>
+          <button onclick="postForm('/instructor/program', {compile_job_id: ${c.compile_job_id}, board_id: document.getElementById('board-${c.compile_job_id}').value, mode:'volatile'})">Volatile</button>
+        </td></tr>`
+      ).join('');
+
+      document.getElementById('programJobs').textContent = JSON.stringify(snap.program_jobs || [], null, 2);
+    }
+
+    const src = new EventSource('/events/stream');
+    src.addEventListener('snapshot', (evt) => {
+      render(JSON.parse(evt.data));
+    });
+
+    fetch('/instructor/snapshot').then(r => r.json()).then(render);
+  </script>
+</body>
+</html>

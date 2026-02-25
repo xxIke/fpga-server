@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.fpga-server.db
+fpga_server.db
+students/
+temp/
+logs/
+*.log

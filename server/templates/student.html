@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FPGA Student Portal</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 24px; background: #f4f7fb; color: #1c2430; }
+    .card { background: #fff; padding: 16px; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+    input, button { padding: 8px; margin: 4px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #ddd; text-align: left; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>FPGA Student Portal</h1>
+  {% if not student %}
+    <div class="card">
+      <h2>Register / Login</h2>
+      <form method="post" action="/student/register">
+        <label>Last Name</label><br />
+        <input type="text" name="last_name" required />
+        <button type="submit">Continue</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="card">
+      <h2>Welcome, {{ student.display_name }}</h2>
+      <form id="submitForm" enctype="multipart/form-data">
+        <label>Submission Name</label><br />
+        <input type="text" name="submission_name" required /><br />
+        <label>Top Module</label><br />
+        <input type="text" name="top_module" value="{{ default_top }}" /><br />
+        <label>Files</label><br />
+        <input type="file" name="files" multiple required /><br />
+        <button type="submit">Submit Build</button>
+      </form>
+      <pre id="submitOut"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Latest Builds (Most Recent 3)</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Submission</th><th>Status</th><th>Return</th><th>Finished</th><th>Logs</th></tr></thead>
+        <tbody id="jobsBody">
+          {% for j in jobs %}
+          <tr>
+            <td>{{ j.id }}</td>
+            <td>{{ j.submission_name_raw }}</td>
+            <td>{{ j.status }}</td>
+            <td>{{ j.return_code }}</td>
+            <td>{{ j.finished_at }}</td>
+            <td><a href="/student/jobs/{{ j.id }}/log" target="_blank">View Log</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      const form = document.getElementById('submitForm');
+      const out = document.getElementById('submitOut');
+      const jobsBody = document.getElementById('jobsBody');
+
+      async function refreshJobs() {
+        const resp = await fetch('/student/jobs/latest');
+        const jobs = await resp.json();
+        jobsBody.innerHTML = '';
+        jobs.forEach(j => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${j.id}</td><td>${j.submission_name}</td><td>${j.status}</td><td>${j.return_code ?? ''}</td><td>${j.finished_at ?? ''}</td><td><a href="/student/jobs/${j.id}/log" target="_blank">View Log</a></td>`;
+          jobsBody.appendChild(tr);
+        });
+      }
+
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const resp = await fetch('/student/submit', { method: 'POST', body: fd });
+        const data = await resp.json();
+        out.textContent = JSON.stringify(data, null, 2);
+        await refreshJobs();
+      });
+
+      setInterval(refreshJobs, 3000);
+    </script>
+  {% endif %}
+</body>
+</html>

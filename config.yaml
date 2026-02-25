@@ -1,0 +1,27 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  session_cookie_name: fpga_session
+
+paths:
+  db_path: ./fpga_server.db
+  template_dir: ./template
+  students_dir: ./students
+  temp_dir: ./temp
+  artifacts_dir: ./artifacts
+  logs_dir: ./logs
+
+build:
+  num_processes: 4
+  timeout_seconds: 180
+  retention_per_student: 3
+  default_top_module: top
+
+programming:
+  workers: 2
+  timeout_seconds: 45
+  detect_interval_seconds: 8
+  blank_bitstream: blank_reset.bin
+
+security:
+  session_ttl_hours: 12
